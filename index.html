@@ -767,6 +767,18 @@ summary::marker{ color:var(--pg); }
 .task{ color:var(--pk) !important; }
 .task.done{ color:#7E6638 !important; }
 
+/* 正解した小節の「ほかの場所」の札（song-1.50） */
+.altbox{ background:var(--pc); border:1px solid var(--pl); border-left:3px solid #2F6B4F; padding:12px 14px; margin-top:10px; }
+.altbox .ah{ font-family:var(--pH); color:var(--pk); font-size:14px; letter-spacing:.08em; margin-bottom:8px; }
+.altrow{ display:grid; grid-template-columns:4.8em 2.9em 3.9em 1fr; gap:6px; align-items:baseline; padding:5px 0;
+  border-top:1px solid var(--pl); font-family:var(--pB); font-size:13px; color:#4b443a; }
+.altrow b{ color:#2F6B4F; font-family:var(--pH); font-size:15px; }
+.altrow .an{ color:var(--pd); font-size:12px; } .altrow .here{ color:var(--pk); } .altrow .oth{ color:var(--pd); font-size:12px; }
+.altrow .nw{ white-space:nowrap; }
+/* 狭いスマホでは、上の帯の三つが一行に収まるよう詰める */
+@media (max-width:370px){ .stools .btn.tert{ margin-left:10px !important; letter-spacing:.04em !important; } }
+.altbox .af{ margin:8px 0 0; font-family:var(--pB); font-size:11px; color:var(--pd); }
+
 /* 紙の上の淡い文字（昔の夜の地向けの淡色が残っていた）を、読める濃さに */
 #hResumeNote,#hDrill,#hHelp,#hPick,#hGate,.stage .note,#match .lead,#match .note,#mcount{ color:var(--pd) !important; }
 
@@ -936,6 +948,7 @@ summary::marker{ color:var(--pg); }
   <h2 id="sTitle"></h2>
   <p class="lead2" id="sBy"></p>
   <div class="stools">
+    <button type="button" class="btn tert" id="sSpeed">速さ　ふつう</button>
     <button type="button" class="btn tert" id="sLesson">読み方のヒント</button>
     <button type="button" class="btn tert" id="sRestart">はじめから</button>
   </div>
@@ -1036,7 +1049,7 @@ summary::marker{ color:var(--pg); }
 
   <h3>練習問題（ステージとテスト）</h3>
   <p>ホームの「練習問題」から、曲とは別に自動で出る問題で練習できます。</p>
-  <p>1回目と2回目の両方が正解で、そのステージはクリアです。ホームの点は12のステージで、クリアした分が光ります。3ステージごとにテストがあり、合格しないと先へ進めません。どこまで進んだかは端末に残ります。</p>
+  <p>1回目と2回目の両方が正解で、そのステージはクリアです。ホームの点は12のステージで、クリアした分が光ります。3ステージごとにテストがあり、合格しないと先へ進めません。どこまで進んだかは、この端末のこのブラウザに残ります。別のブラウザや別の端末には引き継がれず、ブラウザの閲覧データを消すと消えます。</p>
 
   <h3>シャープやフラット</h3>
   <p>五線譜を書くとき、置いた音符は調号のとおりに読まれます。調号の外の音を書くときは、
@@ -1050,6 +1063,8 @@ summary::marker{ color:var(--pg); }
      外していれば続けてお手本が鳴ります。聞き比べてから○×と理由が出ます。
      合っていた音はそのまま残り、外した音だけ書き直せます。
      「ここまで聞く」は、頭から、いま書いている小節の書いた所までを鳴らします。
+     曲の画面の「速さ」を押すと、ゆっくり鳴らせます（ふつう・遅め・半分の三つ）。
+     小節を正解して次へ進むと、いま解いた小節の音を、ほかのどこで弾けるかが出ます。
      最後まで書けたら、曲として通しで鳴らせます。
      鳴らしている間は全部の段が並び、鳴っている所へ画面が動きます。もう一度押すと止まります。</p>
   <p>曲によって、TABに書く小節・五線譜に書く小節・指板に書く小節があります。どれに書くかは、小節の番号の横に出ます。
@@ -1110,6 +1125,21 @@ summary::marker{ color:var(--pg); }
   <button type="button" class="btn main wide" id="helpClose" style="margin-top:18px">閉じる</button>
 </div>
 
+<script>
+/* ══ 保存の名前の移し替え（2026-11）══
+   保存の名前を旧名「scoreline-trainer/…」から「lyrebird/…」へ替えた。
+   ほかのどの処理よりも先に、旧い名前の中身を新しい名前へ写す（新しい名前が空の時だけ）。
+   旧い名前の中身は消さずに残す——万一の時に戻せるように。 */
+(function(){
+  try{
+    const ls = window.localStorage;
+    ['lesson','opened','seen','song','song-progress'].forEach(k=>{
+      const o = 'scoreline-trainer/' + k, n = 'lyrebird/' + k;
+      if(ls.getItem(n) == null && ls.getItem(o) != null) ls.setItem(n, ls.getItem(o));
+    });
+  }catch(_){}
+})();
+</script>
 <script>
 /* ══════════════════════════════════════════════════════════════
    ScoreLine 描画モジュール  draw-1.20
@@ -4229,7 +4259,9 @@ const ACC_FROM = 3;
    4〜5音は後半へ送った。 */
 const STAGES = [
   {pos:'p0', key:0, count:2},
-  {pos:'p0', key:0, count:2},
+  /* ステージ2は1と同じ音域・調・音数で、**五線譜を書く方式から始める**（trainer-3.80）。
+     変えるのは書き方の一つだけ。生徒が切り替えれば、TABでも解ける */
+  {pos:'p0', key:0, count:2, mode:'staff'},
   {pos:'p1', key:0, count:2},
   {pos:'p5', key:0, count:3},
   {pos:'p7', key:0, count:3},
@@ -4249,15 +4281,17 @@ const TECHS = [
   {id:'pull',   name:'プリング'}
 ];
 const techName = id => (TECHS.find(t=>t.id===id)||TECHS[0]).name;
+/* 書き方の決まった段に入ったら、その書き方にする */
+function applyStageMode(){ const m = (STAGES[S.stage] || {}).mode; if(m) S.mode = m; }
 const stageName = i => {
   const s = STAGES[i];
-  const extra = (s.tech ? '・奏法' : '') + (s.tie ? (s.slur ? '・タイとスラー' : '・タイ') : '');
+  const extra = (s.mode === 'staff' ? '・五線譜を書く' : '') + (s.tech ? '・奏法' : '') + (s.tie ? (s.slur ? '・タイとスラー' : '・タイ') : '');
   return `${i+1}. ${POS[s.pos].name}フレット・${KEYS[s.key].name}・${s.count}音${extra}`;
 };
 
 /* ══ 進み具合（端末に残す）══
    残すのは「どこまで開いたか」だけ。点数は記録しない。 */
-const KEY_STORE = 'scoreline-trainer/opened';
+const KEY_STORE = 'lyrebird/opened';
 let opened = 1;                    /* 開いているステージの数 */
 function loadOpened(){
   try{
@@ -4266,6 +4300,7 @@ function loadOpened(){
   }catch(_){}                      /* 残せない端末でも、その場では遊べる */
   /* 開いたら、いちばん新しい段に立っている。「つづきから」がそのまま効くように */
   S.stage = opened - 1;
+  applyStageMode();
 }
 function saveOpened(){
   try{ window.localStorage.setItem(KEY_STORE, String(opened)); }catch(_){}
@@ -4593,7 +4628,14 @@ function gradeAll(){
     /* 理由を組み立てるための材料。ここで一度だけ作る */
     const mk = (state, mine) => {
       const gap = (mine==null) ? 0 : mine - want;
-      const ctx = {gap, up:gap < 0, low:gap < 0, lo:r.lo, hi:r.hi,
+      /* 臨時記号が絡む半音ちがいだけ、そう伝える（曲の画面と同じ決まり・trainer-3.80）。
+         どちらへずれたかは言わない */
+      const qks = (q && q.ks)|0, staffW = (S.mode === 'staff');
+      const wsp = D.spell(want, qks);
+      const accNote = wsp.alter !== D.keyAlterTable(qks)[((wsp.absStep%7)+7)%7];
+      const semi = (mine != null) && Math.abs(gap) === 1
+        && (staffW ? (g && g.absStep === wsp.absStep) : accNote);
+      const ctx = {gap, up:gap > 0, low:gap < 0, lo:r.lo, hi:r.hi, staffW, semi,
                    name:NAME12[(((want%12)+12)%12)]};
       const stop = (S.mode==='tab' && g) ? g : w.stops[0];
       return {state, why:reason(state, w, stop, ctx)};
@@ -5033,7 +5075,7 @@ function matchNext(){
   if(left === 0 && !M.over){
     gateWait = false;
     openNext();
-    if(S.stage+1 < STAGES.length && S.stage+1 < opened){ S.stage += 1; flipCard(); }
+    if(S.stage+1 < STAGES.length && S.stage+1 < opened){ S.stage += 1; applyStageMode(); flipCard(); }
     screen = 'bar';
     makeQuestion();
     return;
@@ -5146,7 +5188,7 @@ function validNote(g){
     || ((k === 'vib' || k === 'grace') && t[k] === true));
 }
 /* ══ 曲の途中を覚える（trainer-4.00）══ */
-const KEY_PROG = 'scoreline-trainer/song-progress';
+const KEY_PROG = 'lyrebird/song-progress';
 function loadProg(){
   try{
     const v = JSON.parse(window.localStorage.getItem(KEY_PROG) || '{}');
@@ -5206,6 +5248,7 @@ function drawDrill(){
   /* 一行に詰め込むと端で切れる。**場所と調**を主に、細かい条件は下の行へ */
   $('hName').textContent = `${POS[cfg.pos].name}フレット・${KEYS[cfg.key].name}`;
   const kind = [`${cfg.count}音`];
+  if(cfg.mode === 'staff') kind.push('五線譜を書く');
   if(cfg.tie)  kind.push('タイ');
   if(cfg.slur) kind.push('スラー');
   if(cfg.tech) kind.push('奏法');
@@ -6012,7 +6055,7 @@ function onNext(){
   if(allRight() && S.round===1){ goRound2(); return; }
   if(allRight() && S.round===2){
     if(gateWait){ makeMatch(); return; }          /* 関門へ */
-    if(S.stage+1 < STAGES.length && S.stage+1 < opened){ S.stage += 1; flipCard(); }
+    if(S.stage+1 < STAGES.length && S.stage+1 < opened){ S.stage += 1; applyStageMode(); flipCard(); }
     makeQuestion(); return;
   }
   resetInput(); draw();          /* もう一度（同じ問いをやり直す） */
@@ -6049,6 +6092,7 @@ function buildStageList(){
   const want = STAGES.map((cfg,i)=>{
     const open = i < opened, cur = (i === S.stage);
     const marks = [];
+    if(cfg.mode === 'staff') marks.push('五線譜を書く');
     if(cfg.tie)  marks.push('タイ');
     if(cfg.slur) marks.push('スラー');
     if(cfg.tech) marks.push('奏法');
@@ -6088,6 +6132,7 @@ function buildControls(){
     const i = +b.dataset.stage;
     if(i >= opened) return;
     S.stage = i;
+    applyStageMode();
     closeSet();
     if(screen === 'drill') drawDrill(); else makeQuestion();
   };
@@ -6123,7 +6168,7 @@ function closeRule(){ const was = $('rule').classList.contains('on'); $('rule').
    目次 → 節（読み物）→ 演習。本番のステージには触れない。
    どこまで読んだか・演習に通ったかは端末に残す。
    ══════════════════════════════════════════════════════════════ */
-const KEY_LES = 'scoreline-trainer/lesson';
+const KEY_LES = 'lyrebird/lesson';
 let lesson = {ch:0, sec:0, done:{}};     /* done['1-2']=true / done['q1']=true */
 let quiz = null;                          /* 演習の最中だけ入る */
 
@@ -6276,7 +6321,7 @@ function quizNext(){
 
    採点・描画・音は今までの道具をそのまま使う。作り直すのは進め方だけ。
    ══════════════════════════════════════════════════════════════ */
-const KEY_SONG = 'scoreline-trainer/song';
+const KEY_SONG = 'lyrebird/song';
 /* ══ 確認用：どの小節へも飛べる（trainer-3.72・一時的）══
    点の帯で先の小節を押すと、その前の小節をお手本で埋めて正解扱いにする。
    生徒には出さない。アドレスの末尾に ?debug=1 を付けて開いた時だけ有効（trainer-4.20）。 */
@@ -6487,7 +6532,21 @@ const songKs    = () => song.def.bars[0].ks;
    小節の長さは曲ごと・小節ごと。弱起の小節は短い（len を持つ）。 */
 const fullLen   = ts => T.QUARTER*4*ts.n/ts.d;
 const songBarLen = bi => { const b = song.def.bars[bi]; return b.len || fullLen(b.ts); };
-const songSec   = tick => (tick/T.QUARTER)*(60/song.def.bpm);
+/* ══ 鳴らす速さ（song-1.50）══
+   聞き比べで間違いに気づくための機能ゆえ、ゆっくりでも鳴らせるようにする。
+   「答えを聞く」「お手本を聞く」「ここまで聞く」「通して聞く」のすべてに効く。端末に覚える */
+const SONG_SPEEDS = [{v:1, name:'ふつう'}, {v:0.75, name:'遅め'}, {v:0.5, name:'半分'}];
+const KEY_SPEED = 'lyrebird/speed';
+let songSpeedI = 0;
+try{ const v = parseInt(window.localStorage.getItem(KEY_SPEED), 10); if(v >= 0 && v < SONG_SPEEDS.length) songSpeedI = v; }catch(_){}
+const songSpeedV = () => SONG_SPEEDS[songSpeedI].v;
+function songSpeedText(){ const b = $('sSpeed'); if(b) b.textContent = `速さ　${SONG_SPEEDS[songSpeedI].name}`; }
+function songSpeedNext(){
+  songSpeedI = (songSpeedI + 1) % SONG_SPEEDS.length;
+  try{ window.localStorage.setItem(KEY_SPEED, String(songSpeedI)); }catch(_){}
+  songSpeedText();
+}
+const songSec   = tick => (tick/T.QUARTER)*(60/song.def.bpm/songSpeedV());
 /* 段の割り方。弱起があれば、1段目は弱起＋4小節 */
 function songLines(){
   const n = song.def.bars.length, st = song.def.pickup ? 1 : 0, out = [];
@@ -7086,6 +7145,33 @@ function setSongAcc(id){
   }
   drawSong();
 }
+/* ══ 正解した小節の「ほかの場所」（song-1.50）══
+   正解すると0.7秒で次の小節へ進む（書く流れを止めない）。その代わり、
+   次の小節へ移った画面に、いま解いた小節の音が**ほかのどこで弾けるか**を添える。
+   次の小節を書き始めたら消す。12フレットまでの、まったく同じ高さの場所だけ */
+function songAltHTML(){
+  const pb = song.altBar;
+  if(pb == null || pb !== song.bar - 1 || !song.done[pb] || songFilled(song.bar) > 0) return '';
+  const b = song.def.bars[pb], NM = window.SLLesson ? SLLesson.nameOf : null;
+  if(!NM) return '';
+  const unit = (b.ts.d >= 8 && b.ts.n % 3 === 0) ? T.QUARTER*1.5 : T.QUARTER*4/b.ts.d;
+  const rows = b.notes.map((n, i)=>{
+    if(n.rest || !n.stops || songTieSrc(pb, i)) return '';
+    const g = song.wrote[pb][i];
+    const st = (g && g.s != null) ? {s:g.s, f:g.f} : n.stops[0];
+    const others = D.samePitchStops(st.s, st.f, 0)
+      .filter(q=> q.f >= 0 && q.f <= 12 && !(q.s === st.s && q.f === st.f))
+      .map(q=> `<span class="nw">${6 - q.s}弦${q.f}</span>`);
+    const beat = Math.floor(n.start/unit) + 1, off = n.start % unit !== 0;
+    const lab = (song.def.pickup && pb === 0) ? `${i+1}音目` : `${beat}拍目${off ? 'の裏' : ''}`;
+    return `<div class="altrow"><span class="an">${lab}</span><b>${NM(st.s, st.f)}</b>`
+      + `<span class="here">${6 - st.s}弦${st.f}</span>`
+      + `<span class="oth">${others.length ? 'ほかに　' + others.join('・') : 'ほかの場所なし'}</span></div>`;
+  }).join('');
+  if(!rows) return '';
+  return `<div class="altbox"><div class="ah">${songBarName(pb)}の音は、ほかの場所でも弾けます</div>${rows}`
+    + `<p class="af">書き始めると消えます。</p></div>`;
+}
 function songBeatLabel(n, i){
   const b = songBar();
   if(song.def.pickup && song.bar === 0) return `${i+1}音目`;
@@ -7138,7 +7224,12 @@ function updateSongBar(){
           ? `${songBarName(song.bar)}は、五線譜を見て指板を押してください。`
           : `${songBarName(song.bar)}を、TABに書いてください。`);
   const box = $('why2');
-  if(!song.marks){ box.hidden = true; box.innerHTML=''; return; }
+  if(!song.marks){
+    const alt = songAltHTML();
+    if(alt){ box.hidden = false; box.innerHTML = alt; }
+    else { box.hidden = true; box.innerHTML=''; }
+    return;
+  }
   const rows = [];
   if(song.marks.some(m=>m && m.state === 'tied') && songWritable(song.bar).some(Boolean))
     rows.push(`<div class="wrow tied"><span class="wn">タイ</span><span class="wb">`
@@ -7312,7 +7403,7 @@ function songJudge(){
       const accNote = wsp.alter !== D.keyAlterTable(b.ks)[((wsp.absStep%7)+7)%7];
       const semi = (mine != null) && Math.abs(gap) === 1
         && (staffW ? (g && g.absStep === wsp.absStep) : accNote);
-      const ctx = {gap, up:gap<0, low:gap<0, lo:r.lo, hi:r.hi, staffW, semi,
+      const ctx = {gap, up:gap>0, low:gap<0, lo:r.lo, hi:r.hi, staffW, semi,
                    name:NAME12[(((want%12)+12)%12)]};
       return {state, why:reason(state, w, (g && g.absStep==null) ? g : w.stops[0], ctx)};
     };
@@ -7337,7 +7428,7 @@ function songCheck(){
   if(!song || song.playing || song.tour) return;
   const judged = songJudge();
   const ok2 = judged.every(songJudgeOK);
-  const bpm = song.def.bpm, sec = tick => (tick/T.QUARTER)*(60/bpm);
+  const bpm = song.def.bpm, sec = tick => (tick/T.QUARTER)*(60/bpm/songSpeedV());
   const barSec = sec(songBarLen(song.bar));
   /* 判定は伏せたまま、まず鳴らす */
   song.pending = judged;
@@ -7394,6 +7485,7 @@ function songReveal(judged, ok2){
        音を聞き終えた直後に次へ送り、書く流れを切らさない。
        最後の小節まで来たら送らない——そこは「通して聞く」所ゆえ。 */
     if(song.bar + 1 < song.def.bars.length){
+      song.altBar = song.bar;      /* 次の小節で「ほかの場所」を添える */
       drawSong();
       const was = song, wasBar = song.bar;
       song.advance = setTimeout(()=>{
@@ -7568,7 +7660,7 @@ function songPlay(from, to, endAt){
   if(song.tour){ songTourStop(false); return false; }
   if(song.advance){ clearTimeout(song.advance); song.advance = 0; }
   if(song.playing) return false;
-  const bpm = song.def.bpm, sec = tick => (tick/T.QUARTER)*(60/bpm);
+  const bpm = song.def.bpm, sec = tick => (tick/T.QUARTER)*(60/bpm/songSpeedV());
   const lead = 0.25;
   let any = false;
   const snd = !!window.SLSound;
@@ -7637,7 +7729,7 @@ function songTourStop(ended){
 
 /* ══ 使い方 ══════════════════════════════════════════════
    別画面で開く。初めて開いた時だけ、短い案内を一度出す。 */
-const KEY_SEEN = 'scoreline-trainer/seen';
+const KEY_SEEN = 'lyrebird/seen';
 /* ══ 下から出る画面のフォーカス（trainer-4.30）══
    開けば中へ、Escで閉じ、閉じたら押したボタンへ戻す。開いている間はTabで外へ出ない。 */
 const MODALS = ['help', 'set', 'rule'];
@@ -7753,6 +7845,8 @@ function init(){
   };
   $('sCheck').onclick  = ()=> songCheck();
   $('sNext').onclick   = ()=> songNext();
+  $('sSpeed').onclick  = ()=> songSpeedNext();
+  songSpeedText();
   $('sClear').onclick  = ()=> songClear();
   $('sRoot').onclick   = ()=> toggleRoots();
   $('sHint').onclick   = ()=> songHintNext();
